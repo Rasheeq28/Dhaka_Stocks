@@ -93,53 +93,104 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
 #         "Total Volume": work_df['volume'].sum()
 #     }
 
+# def calculate_period_comparison(df, entity_name, entity_type):
+#     """Calculates Period Average pillars using the Market Logic (Standard Dev + GMean)."""
+#
+#     # 1. Robust filtering logic
+#     if entity_type == "stock":
+#         work_df = df[df['trading_code'] == entity_name].copy()
+#     else:
+#         work_df = get_benchmark_df(df, entity_name, entity_type)
+#
+#     if work_df.empty:
+#         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
+#
+#     # 2. Daily Aggregation (Matches compute_daily_market_metrics theory)
+#     # First, calculate individual daily returns for all stocks in the working set
+#     work_df = work_df[work_df['ycp'] > 0].copy()
+#     work_df['daily_ret_pct'] = ((work_df['ltp'] - work_df['ycp']) / work_df['ycp']) * 100
+#
+#     # Group by date to get the "Entity's Market Return" for that day
+#     daily_stats = work_df.groupby('date').agg(
+#         market_return=('daily_ret_pct', 'mean'),
+#         total_val=('value_mn', 'sum'),
+#         total_vol=('volume', 'sum')
+#     ).reset_index()
+#
+#     if daily_stats.empty:
+#         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
+#
+#     # 3. Apply Period Average Logic (Matches compute_period_averages theory)
+#
+#     # A. Volatility: Standard deviation of the daily percentage returns
+#     period_vol = daily_stats['market_return'].std()
+#
+#     # B. Geometric Mean: Convert % to decimal (1.0x) and use gmean
+#     returns_decimal = (daily_stats['market_return'] / 100) + 1
+#
+#     # Safety check for non-positive values before gmean
+#     if (returns_decimal <= 0).any():
+#         geo_mean_return = 0  # Or np.nan
+#     else:
+#         # Using scipy.stats.gmean as in your market code
+#         geo_mean_return = (gmean(returns_decimal) - 1) * 100
+#
+#     return {
+#         "Entity": entity_name,
+#         "Avg Return": geo_mean_return,
+#         "Volatility": period_vol,
+#         "Pos. Days": (daily_stats['market_return'] > 0).mean() * 100,
+#         "ADTV": daily_stats['total_val'].mean(),
+#         "Total Volume": work_df['volume'].sum()
+#     }
+
 def calculate_period_comparison(df, entity_name, entity_type):
-    """Calculates Period Average pillars using the Market Logic (Standard Dev + GMean)."""
+    """Calculates Period Average pillars using exactly the same theory as market/compute.py."""
 
-    # 1. Robust filtering logic
+    # 1. Standardize the data filtering
     if entity_type == "stock":
-        work_df = df[df['trading_code'] == entity_name].copy()
+        working_df = df[df['trading_code'] == entity_name].copy()
     else:
-        work_df = get_benchmark_df(df, entity_name, entity_type)
+        # Use your helper to get the group (Sector/Index/Category)
+        working_df = get_benchmark_df(df, entity_name, entity_type)
 
-    if work_df.empty:
+    if working_df.empty:
         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
 
-    # 2. Daily Aggregation (Matches compute_daily_market_metrics theory)
-    # First, calculate individual daily returns for all stocks in the working set
-    work_df = work_df[work_df['ycp'] > 0].copy()
-    work_df['daily_ret_pct'] = ((work_df['ltp'] - work_df['ycp']) / work_df['ycp']) * 100
+    # 2. Daily Market Metrics Step (Mirroring compute_daily_market_metrics)
+    # Filter out bad data like the market code does
+    working_df = working_df[working_df['ycp'] > 0].dropna(subset=['ltp', 'ycp'])
+    working_df['stock_return'] = (working_df['ltp'] - working_df['ycp']) / working_df['ycp']
 
-    # Group by date to get the "Entity's Market Return" for that day
-    daily_stats = work_df.groupby('date').agg(
-        market_return=('daily_ret_pct', 'mean'),
-        total_val=('value_mn', 'sum'),
-        total_vol=('volume', 'sum')
+    # Group by date to get the "Daily Market Return" for this entity
+    daily_df = working_df.groupby('date').agg(
+        market_return=('stock_return', lambda x: x.mean() * 100),  # Convert to %
+        total_value=('value_mn', 'sum'),
+        total_volume=('volume', 'sum')
     ).reset_index()
 
-    if daily_stats.empty:
+    if daily_df.empty:
         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
 
-    # 3. Apply Period Average Logic (Matches compute_period_averages theory)
+    # 3. Period Average Step (Mirroring compute_period_averages)
 
     # A. Volatility: Standard deviation of the daily percentage returns
-    period_vol = daily_stats['market_return'].std()
+    period_vol = daily_df['market_return'].std()
 
-    # B. Geometric Mean: Convert % to decimal (1.0x) and use gmean
-    returns_decimal = (daily_stats['market_return'] / 100) + 1
+    # B. Geometric Mean: Convert % back to decimal (1.0x) for gmean
+    returns_decimal = (daily_df['market_return'] / 100) + 1
 
-    # Safety check for non-positive values before gmean
     if (returns_decimal <= 0).any():
-        geo_mean_return = 0  # Or np.nan
+        geo_mean_return = 0
     else:
-        # Using scipy.stats.gmean as in your market code
+        # Matches your working theory perfectly
         geo_mean_return = (gmean(returns_decimal) - 1) * 100
 
     return {
         "Entity": entity_name,
         "Avg Return": geo_mean_return,
         "Volatility": period_vol,
-        "Pos. Days": (daily_stats['market_return'] > 0).mean() * 100,
-        "ADTV": daily_stats['total_val'].mean(),
-        "Total Volume": work_df['volume'].sum()
+        "Pos. Days": (daily_df['market_return'] > 0).mean() * 100,
+        "ADTV": daily_df['total_value'].mean(),
+        "Total Volume": working_df['volume'].sum()
     }
