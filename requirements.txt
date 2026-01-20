@@ -1,0 +1,10 @@
+dotenv~=0.9.9
+python-dotenv~=1.2.1
+streamlit
+supabase
+pandas
+python-dotenv
+supabase_client
+plotly
+numpy
+python-dotenv
