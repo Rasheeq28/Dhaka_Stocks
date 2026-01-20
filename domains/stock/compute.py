@@ -1,4 +1,5 @@
 import pandas as pd
+from scipy import gmean
 
 # Standardized DS30 List for internal filtering
 DS30_SYMBOLS = [
@@ -93,7 +94,9 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
 #     }
 
 def calculate_period_comparison(df, entity_name, entity_type):
-    """Calculates Period Average pillars with safety checks for inf/nan."""
+    """Calculates Period Average pillars using the Market Logic (Standard Dev + GMean)."""
+
+    # 1. Robust filtering logic
     if entity_type == "stock":
         work_df = df[df['trading_code'] == entity_name].copy()
     else:
@@ -102,34 +105,41 @@ def calculate_period_comparison(df, entity_name, entity_type):
     if work_df.empty:
         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
 
-    # Group by date to get daily average metrics
-    # We use a lambda that filters out zero YCP to prevent 'inf'
+    # 2. Daily Aggregation (Matches compute_daily_market_metrics theory)
+    # First, calculate individual daily returns for all stocks in the working set
+    work_df = work_df[work_df['ycp'] > 0].copy()
+    work_df['daily_ret_pct'] = ((work_df['ltp'] - work_df['ycp']) / work_df['ycp']) * 100
+
+    # Group by date to get the "Entity's Market Return" for that day
     daily_stats = work_df.groupby('date').agg(
-        ret_ratio=('ltp', lambda x: (x / work_df.loc[x.index, 'ycp'].replace(0, np.nan)).mean()),
-        val=('value_mn', 'sum')
-    ).dropna()  # Remove any dates that resulted in NaN/Inf
+        market_return=('daily_ret_pct', 'mean'),
+        total_val=('value_mn', 'sum'),
+        total_vol=('volume', 'sum')
+    ).reset_index()
 
     if daily_stats.empty:
         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
 
-    # Calculation with safety checks
-    try:
-        # Geometric mean calculation
-        product = daily_stats['ret_ratio'].prod()
-        avg_ret = (product ** (1 / len(daily_stats)) - 1) * 100 if product > 0 else 0
+    # 3. Apply Period Average Logic (Matches compute_period_averages theory)
 
-        # Volatility check
-        vol = (daily_stats['ret_ratio'] - 1).std() * 100
-        if np.isnan(vol): vol = 0
+    # A. Volatility: Standard deviation of the daily percentage returns
+    period_vol = daily_stats['market_return'].std()
 
-    except Exception:
-        avg_ret, vol = 0, 0
+    # B. Geometric Mean: Convert % to decimal (1.0x) and use gmean
+    returns_decimal = (daily_stats['market_return'] / 100) + 1
+
+    # Safety check for non-positive values before gmean
+    if (returns_decimal <= 0).any():
+        geo_mean_return = 0  # Or np.nan
+    else:
+        # Using scipy.stats.gmean as in your market code
+        geo_mean_return = (gmean(returns_decimal) - 1) * 100
 
     return {
         "Entity": entity_name,
-        "Avg Return": avg_ret,
-        "Volatility": vol,
-        "Pos. Days": (daily_stats['ret_ratio'] > 1).mean() * 100,
-        "ADTV": daily_stats['val'].mean(),
+        "Avg Return": geo_mean_return,
+        "Volatility": period_vol,
+        "Pos. Days": (daily_stats['market_return'] > 0).mean() * 100,
+        "ADTV": daily_stats['total_val'].mean(),
         "Total Volume": work_df['volume'].sum()
     }
