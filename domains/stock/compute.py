@@ -1,5 +1,5 @@
 import pandas as pd
-from scipy import gmean
+from scipy.stats import gmean
 
 # Standardized DS30 List for internal filtering
 DS30_SYMBOLS = [
