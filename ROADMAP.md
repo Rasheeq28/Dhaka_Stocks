@@ -17,5 +17,4 @@
 
 ## Phase 04 — AI Querying
 - [ ] Metric explainer
-- [ ] Natural language querying
-- [ ] RAG over internal data
+- [ ] AI querying
