@@ -13,6 +13,7 @@ focused on clean historical data, reproducible metrics, and explainable insights
 ## What this is NOT (yet)
 - Not a trading platform
 - Not a trading tool
-- 
+  
 ## Roadmap
 See ROADMAP.md
+
