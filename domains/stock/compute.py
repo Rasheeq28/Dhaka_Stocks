@@ -75,37 +75,42 @@ def get_benchmark_df(df, name, b_type):
 #     return timeline
 
 def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_type):
-    # 1. Filter Target
+    # 1. Prepare Target Data
     stock_df = df[df['trading_code'] == target_stock].copy().sort_values('date')
+    # Pre-calculate target return to avoid alignment issues later
+    stock_df['target_ret'] = ((stock_df['ltp'] - stock_df['ycp']) / stock_df['ycp']) * 100
     stock_adtv = stock_df['value_mn'].mean()
 
-    # 2. Filter Benchmark/Peer
+    # 2. Prepare Benchmark Data
     bench_df = get_benchmark_df(df, benchmark_name, benchmark_type).copy()
+    bench_df = bench_df[bench_df['ycp'] > 0].copy()
+    bench_df['raw_ret_pct'] = ((bench_df['ltp'] - bench_df['ycp']) / bench_df['ycp']) * 100
 
-    # --- FIX START: Calculate individual row returns first ---
-    bench_df = bench_df[bench_df['ycp'] > 0].copy()  # Avoid division by zero
-    bench_df['raw_ret'] = (bench_df['ltp'] - bench_df['ycp']) / bench_df['ycp']
-
-    # Now group and average those pre-calculated returns
+    # Aggregate Benchmark by Date
     bench_daily = bench_df.groupby('date').agg(
         bench_ltp=('ltp', 'mean'),
-        bench_ret=('raw_ret', lambda x: x.mean() * 100),
+        bench_ret=('raw_ret_pct', 'mean'),  # This is the average % return for the bench
         bench_val=('value_mn', 'sum')
     ).reset_index()
-    # --- FIX END ---
 
     bench_adtv = bench_daily['bench_val'].mean()
 
-    # 3. Daily Market Total
-    market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
+    # 3. Market Total for Liquidity Share
+    market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val').reset_index()
 
-    # 4. Combine (Outer join ensures we don't drop days if one stock was suspended)
-    merged = stock_df.merge(market_total, on='date', how='left')
-    merged = merged.merge(bench_daily, on='date', how='left')
+    # 4. Merging - Use 'left' join on stock_df to keep it as the master timeline
+    merged = stock_df.merge(bench_daily, on='date', how='left')
+    merged = merged.merge(market_total, on='date', how='left')
 
-    # 5. Build Timeline
-    # Calculate target return first for clarity
-    target_ret = ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100
+    # --- THE CRITICAL FIX ---
+    # If a benchmark has no data for a specific day, fill the return with 0
+    # so the subtraction (target - 0) doesn't break.
+    merged['bench_ret'] = merged['bench_ret'].fillna(0)
+    merged['bench_ltp'] = merged['bench_ltp'].fillna(method='ffill')  # Carry last price forward
+
+    # 5. Final Calculation
+    # We use the pre-calculated target_ret and the filled bench_ret
+    excess_ret = merged['target_ret'] - merged['bench_ret']
 
     timeline = pd.DataFrame({
         'date': merged['date'],
@@ -114,13 +119,12 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
         'low': merged['low'],
         'close': merged['closep'],
         'Bench Price': merged['bench_ltp'],
-        'Daily Return': target_ret,
+        'Daily Return': merged['target_ret'],
         'Bench Return': merged['bench_ret'],
         'Daily Traded Value': merged['value_mn'],
         'Bench Traded Value': merged['bench_val'],
         'Liquidity Share': (merged['value_mn'] / merged['mkt_val'] * 100),
-        # Excess Return is now based on clean, aligned data
-        'Excess Return vs Market': target_ret - merged['bench_ret'],
+        'Excess Return vs Market': excess_ret,
         'Participation Index': (merged['value_mn'] / stock_adtv) if stock_adtv > 0 else 0,
         'Bench Participation Index': (merged['bench_val'] / bench_adtv) if bench_adtv > 0 else 0
     })
