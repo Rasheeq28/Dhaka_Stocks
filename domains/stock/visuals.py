@@ -45,9 +45,7 @@ def render_stock_daily_charts(df, ticker, bench_name):
         fig4.update_layout(title="Liquidity Share (%)", template="plotly_white", height=300)
         st.plotly_chart(fig4, use_container_width=True, key=f"liq_{ticker}")
 
-    # 3. Excess Return
         # 3. Excess Return (Conditional Coloring)
-        # Create a color list: Green for > 0, Red for < 0
         colors = ['#00CC96' if x >= 0 else '#EF553B' for x in df['Excess Return vs Market']]
 
         fig5 = go.Figure()
@@ -55,17 +53,34 @@ def render_stock_daily_charts(df, ticker, bench_name):
             x=df['date'],
             y=df['Excess Return vs Market'],
             marker_color=colors,
-            name="Excess Return"
+            name="Excess Return",
+            # Adding a slight border to bars for a cleaner look
+            marker_line_width=0,
         ))
 
-        fig5.add_hline(y=0, line_dash="dash", line_color="black")
+        fig5.add_hline(y=0, line_dash="dash", line_color="black", line_width=1)
+
         fig5.update_layout(
-            title=f"Excess Return: {ticker} vs {bench_name} (%)",
+            title={
+                'text': f"Excess Return: {ticker} vs {bench_name} (%)",
+                'y': 0.9,
+                'x': 0.5,
+                'xanchor': 'center',
+                'yanchor': 'top'
+            },
             template="plotly_white",
-            height=300,
-            hovermode="x unified"
+            height=350,  # Slightly taller for better centering
+            hovermode="x unified",
+            # Centering the plot area by adjusting margins
+            margin=dict(l=50, r=50, t=80, b=50),
+            showlegend=False,  # Hidden since the title and colors explain the data
+            xaxis=dict(showgrid=False),
+            yaxis=dict(zeroline=False, title="Return Diff (%)")
         )
-        st.plotly_chart(fig5, use_container_width=True, key=f"exc_{ticker}_{bench_name}")
+
+        # Using a container to provide extra padding for "centering" feel
+        with st.container():
+            st.plotly_chart(fig5, use_container_width=True, key=f"exc_{ticker}_{bench_name}")
 
 def render_comparison_cards(target, bench):
     """Side-by-side metric cards for Period Average."""
