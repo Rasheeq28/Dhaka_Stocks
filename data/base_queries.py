@@ -21,7 +21,7 @@ def fetch_market_data(start_date: str, end_date: str):
                 # partitioned table to 'dsex_prices' in the SQL swap step.
                 response = (
                     supabase_client.table("dsex_prices")
-                    .select("date, openp,ltp, closep, ycp, value_mn, volume, value_mn, trade,  dsex_mapper(trading_code, category, sector)")
+                    .select("date, openp, high,low,ltp, closep, ycp, value_mn, volume, value_mn, trade,  dsex_mapper(trading_code, category, sector)")
                     .gte("date", start_date)  # These two lines trigger 'Partition Pruning'
                     .lte("date", end_date)
                     .order("date", desc=False)
