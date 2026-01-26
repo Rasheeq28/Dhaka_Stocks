@@ -4,11 +4,9 @@ import plotly.graph_objects as go
 
 
 def render_stock_daily_charts(df, ticker, bench_name):
-    # --- NEW: Candlestick Section ---
-    render_candlestick_chart(df, ticker)
-
+    """Refreshed daily charts including the overlay candlestick."""
+    render_candlestick_chart(df, ticker, bench_name)
     st.divider()
-    """Renders 5 daily metrics comparing Target Stock vs Benchmark."""
 
     # 1. Daily Return Comparison
     col1, col2 = st.columns(2)
@@ -73,24 +71,41 @@ def render_comparison_cards(target, bench):
                 st.caption(f"Total Period Volume: {data.get('Total Volume', 0):,.0f}")
 
 
-def render_candlestick_chart(df, ticker):
-    """Renders a professional candlestick chart for the target stock."""
-    fig = go.Figure(data=[go.Candlestick(
+def render_candlestick_chart(df, ticker, bench_name):
+    """Renders a candlestick chart with a benchmark trend line overlay."""
+    fig = go.Figure()
+
+    # 1. Primary Candlestick for Target Stock
+    fig.add_trace(go.Candlestick(
         x=df['date'],
         open=df['open'],
         high=df['high'],
         low=df['low'],
         close=df['close'],
-        increasing_line_color='#00CC96', # Green
-        decreasing_line_color='#EF553B', # Red
-        name=ticker
-    )])
+        increasing_line_color='#00CC96',  # Green
+        decreasing_line_color='#EF553B',  # Red
+        name=f"{ticker} (OHLC)"
+    ))
+
+    # 2. Overlay Trend Line for Benchmark/Peer
+    # We only show this if the price is within a comparable range (e.g., not DSEX index points vs Stock price)
+    # If comparing Peer vs Peer, this works perfectly.
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['Bench Price'],
+        name=f"{bench_name} (Trend)",
+        line=dict(color='#FECB52', width=2),  # Yellow/Gold trend line
+        mode='lines'
+    ))
 
     fig.update_layout(
-        title=f"{ticker} Price Action (Candlestick)",
+        title=f"Price Action: {ticker} vs {bench_name}",
         template="plotly_white",
-        height=450,
+        height=500,
         xaxis_rangeslider_visible=False,
-        yaxis_title="Price (BDT)"
+        yaxis_title="Price (BDT)",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"candle_{ticker}")
+
+    st.plotly_chart(fig, use_container_width=True, key=f"candle_{ticker}_{bench_name}")
