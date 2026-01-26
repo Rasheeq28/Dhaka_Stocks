@@ -45,41 +45,27 @@ def render_stock_daily_charts(df, ticker, bench_name):
         fig4.update_layout(title="Liquidity Share (%)", template="plotly_white", height=300)
         st.plotly_chart(fig4, use_container_width=True, key=f"liq_{ticker}")
 
-        st.divider()
+        # 3. Excess Return (BREAK OUT OF COLUMNS)
+        st.write("---")  # Visual separator
 
-        # 3. Excess Return (Full Width & Centered)
         colors = ['#00CC96' if x >= 0 else '#EF553B' for x in df['Excess Return vs Market']]
 
-        fig5 = go.Figure()
-        fig5.add_trace(go.Bar(
+        fig5 = go.Figure(go.Bar(
             x=df['date'],
             y=df['Excess Return vs Market'],
             marker_color=colors,
-            name="Excess Return",
         ))
 
-        fig5.add_hline(y=0, line_dash="dash", line_color="white", line_width=1, opacity=0.5)
-
         fig5.update_layout(
-            title={
-                'text': f"Excess Return: {ticker} vs {bench_name} (%)",
-                'y': 0.95,
-                'x': 0.5,
-                'xanchor': 'center',
-                'yanchor': 'top',
-                'font': {'size': 20}
-            },
-            template="plotly_dark",  # Matches your screenshot
-            height=450,  # Increased height for full-width impact
-            hovermode="x unified",
-            margin=dict(l=20, r=20, t=80, b=40),
-            showlegend=False,
-            xaxis=dict(showgrid=False, title="Date"),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', title="Return Diff (%)")
+            title={'text': f"Excess Return: {ticker} vs {bench_name} (%)", 'x': 0.5, 'xanchor': 'center'},
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=10, r=10, t=50, b=10),  # Tighten margins
+            hovermode="x unified"
         )
 
-        # Render outside of any st.columns() to use full width
-        st.plotly_chart(fig5, use_container_width=True, key=f"exc_full_{ticker}_{bench_name}")
+        # This ensures the chart fills the entire screen width regardless of parent columns
+        st.components.v1.html(fig5.to_html(include_plotlyjs='cdn'), height=450)
 
 def render_comparison_cards(target, bench):
     """Side-by-side metric cards for Period Average."""
