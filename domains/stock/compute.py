@@ -29,36 +29,80 @@ def get_benchmark_df(df, name, b_type):
 
 
 
+# def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_type):
+#     # 1. Filter Target
+#     stock_df = df[df['trading_code'] == target_stock].copy().sort_values('date')
+#     stock_adtv = stock_df['value_mn'].mean()
+#
+#     # 2. Daily Market Total (DSEX) for Liquidity Share
+#     market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
+#
+#     # 3. Filter Benchmark and calculate its daily metrics
+#     bench_df = get_benchmark_df(df, benchmark_name, benchmark_type)
+#
+#     # Calculate Benchmark Daily stats (Aggregated if Sector/Index, individual if Stock)
+#     bench_daily = bench_df.groupby('date').agg(
+#         bench_ret=('ltp', lambda x: ((x - bench_df.loc[x.index, 'ycp']) / bench_df.loc[x.index, 'ycp']).mean() * 100),
+#         bench_val=('value_mn', 'sum')
+#     ).reset_index()
+#
+#     bench_adtv = bench_daily['bench_val'].mean()
+#
+#     # 4. Combine everything
+#     merged = stock_df.merge(market_total, on='date', how='left')
+#     merged = merged.merge(bench_daily, on='date', how='left')
+#
+#     # 5. Build Timeline
+#     timeline = pd.DataFrame({
+#         'date': merged['date'],
+#         'open': merged['openp'],  # Adjust column name if necessary
+#         'high': merged['high'],
+#         'low': merged['low'],
+#         'close': merged['closep'],
+#         'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
+#         'Bench Return': merged['bench_ret'],
+#         'Daily Traded Value': merged['value_mn'],
+#         'Bench Traded Value': merged['bench_val'],
+#         'Liquidity Share': (merged['value_mn'] / merged['mkt_val'] * 100),
+#         'Excess Return vs Market': (((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100) - merged['bench_ret'],
+#         'Participation Index': (merged['value_mn'] / stock_adtv) if stock_adtv > 0 else 0,
+#         'Bench Participation Index': (merged['bench_val'] / bench_adtv) if bench_adtv > 0 else 0
+#     })
+#
+#     return timeline
 def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_type):
     # 1. Filter Target
     stock_df = df[df['trading_code'] == target_stock].copy().sort_values('date')
     stock_adtv = stock_df['value_mn'].mean()
 
-    # 2. Daily Market Total (DSEX) for Liquidity Share
-    market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
-
-    # 3. Filter Benchmark and calculate its daily metrics
+    # 2. Filter Benchmark/Peer
     bench_df = get_benchmark_df(df, benchmark_name, benchmark_type)
 
-    # Calculate Benchmark Daily stats (Aggregated if Sector/Index, individual if Stock)
+    # Calculate Benchmark Daily stats
+    # We add 'bench_ltp' here to get the price for the trend line
     bench_daily = bench_df.groupby('date').agg(
+        bench_ltp=('ltp', 'mean'),  # 'mean' works for both index groups and single stocks
         bench_ret=('ltp', lambda x: ((x - bench_df.loc[x.index, 'ycp']) / bench_df.loc[x.index, 'ycp']).mean() * 100),
         bench_val=('value_mn', 'sum')
     ).reset_index()
 
     bench_adtv = bench_daily['bench_val'].mean()
 
-    # 4. Combine everything
+    # 3. Daily Market Total (for liquidity share)
+    market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
+
+    # 4. Combine
     merged = stock_df.merge(market_total, on='date', how='left')
     merged = merged.merge(bench_daily, on='date', how='left')
 
     # 5. Build Timeline
     timeline = pd.DataFrame({
         'date': merged['date'],
-        'open': merged['openp'],  # Adjust column name if necessary
-        'high': merged['high'],
-        'low': merged['low'],
-        'close': merged['closep'],
+        'open': merged['open_price'],
+        'high': merged['high_price'],
+        'low': merged['low_price'],
+        'close': merged['ltp'],
+        'Bench Price': merged['bench_ltp'],  # NEW: Peer price for trend line
         'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
         'Bench Return': merged['bench_ret'],
         'Daily Traded Value': merged['value_mn'],
@@ -70,7 +114,6 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
     })
 
     return timeline
-
 
 def calculate_period_comparison(df, entity_name, entity_type):
     """Calculates Period Average pillars using exactly the same theory as market/compute.py."""
