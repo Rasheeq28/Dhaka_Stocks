@@ -45,42 +45,58 @@ def render_stock_daily_charts(df, ticker, bench_name):
         fig4.update_layout(title="Liquidity Share (%)", template="plotly_white", height=300)
         st.plotly_chart(fig4, use_container_width=True, key=f"liq_{ticker}")
 
-        # 3. Excess Return (Conditional Coloring)
-        colors = ['#00CC96' if x >= 0 else '#EF553B' for x in df['Excess Return vs Market']]
+        # 3. Excess Return (Full-Width Area Chart with Conditional Colors)
+        st.divider()
+
+        # Split data for conditional coloring
+        df_pos = df.copy()
+        df_pos.loc[df_pos['Excess Return vs Market'] < 0, 'Excess Return vs Market'] = 0
+
+        df_neg = df.copy()
+        df_neg.loc[df_neg['Excess Return vs Market'] > 0, 'Excess Return vs Market'] = 0
 
         fig5 = go.Figure()
-        fig5.add_trace(go.Bar(
-            x=df['date'],
-            y=df['Excess Return vs Market'],
-            marker_color=colors,
-            name="Excess Return",
-            # Adding a slight border to bars for a cleaner look
-            marker_line_width=0,
+
+        # Positive Area (Green)
+        fig5.add_trace(go.Scatter(
+            x=df_pos['date'],
+            y=df_pos['Excess Return vs Market'],
+            fill='tozeroy',
+            mode='lines',
+            line=dict(width=0, color='#00CC96'),
+            fillcolor='rgba(0, 204, 150, 0.4)',  # Semi-transparent green
+            name='Outperformance'
         ))
 
-        fig5.add_hline(y=0, line_dash="dash", line_color="black", line_width=1)
+        # Negative Area (Red)
+        fig5.add_trace(go.Scatter(
+            x=df_neg['date'],
+            y=df_neg['Excess Return vs Market'],
+            fill='tozeroy',
+            mode='lines',
+            line=dict(width=0, color='#EF553B'),
+            fillcolor='rgba(239, 85, 59, 0.4)',  # Semi-transparent red
+            name='Underperformance'
+        ))
+
+        fig5.add_hline(y=0, line_dash="dash", line_color="white", opacity=0.3)
 
         fig5.update_layout(
             title={
                 'text': f"Excess Return: {ticker} vs {bench_name} (%)",
-                'y': 0.9,
                 'x': 0.5,
-                'xanchor': 'center',
-                'yanchor': 'top'
+                'xanchor': 'center'
             },
-            template="plotly_white",
-            height=350,  # Slightly taller for better centering
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=10, r=10, t=50, b=10),
             hovermode="x unified",
-            # Centering the plot area by adjusting margins
-            margin=dict(l=50, r=50, t=80, b=50),
-            showlegend=False,  # Hidden since the title and colors explain the data
-            xaxis=dict(showgrid=False),
-            yaxis=dict(zeroline=False, title="Return Diff (%)")
+            showlegend=False,
+            yaxis=dict(title="Return Difference (%)")
         )
 
-        # Using a container to provide extra padding for "centering" feel
-        with st.container():
-            st.plotly_chart(fig5, use_container_width=True, key=f"exc_{ticker}_{bench_name}")
+        # Placing it outside of columns to ensure it takes the full container width
+        st.plotly_chart(fig5, use_container_width=True, key=f"exc_full_{ticker}")
 
 def render_comparison_cards(target, bench):
     """Side-by-side metric cards for Period Average."""
