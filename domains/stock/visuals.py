@@ -46,10 +46,26 @@ def render_stock_daily_charts(df, ticker, bench_name):
         st.plotly_chart(fig4, use_container_width=True, key=f"liq_{ticker}")
 
     # 3. Excess Return
-    fig5 = go.Figure(
-        go.Scatter(x=df['date'], y=df['Excess Return vs Market'], fill='tozeroy', line=dict(color='#AB63FA')))
-    fig5.add_hline(y=0, line_dash="dash", line_color="black")
-    fig5.update_layout(title=f"Excess Return: {ticker} vs {bench_name} (%)", template="plotly_white", height=300)
+    colors = ['#00CC96' if val >= 0 else '#EF553B' for val in df['Excess Return vs Market']]
+
+    fig5 = go.Figure()
+    fig5.add_trace(go.Bar(
+        x=df['date'],
+        y=df['Excess Return vs Market'],
+        marker_color=colors,
+        name="Excess Return",
+        hovertemplate="%{x|%Y-%m-%d}<br>Excess: %{y:.2f}%<extra></extra>"
+    ))
+
+    fig5.add_hline(y=0, line_dash="solid", line_color="black", line_width=1)
+    fig5.update_layout(
+        title=f"Excess Return: {ticker} vs {bench_name} (%)",
+        template="plotly_white",
+        height=300,
+        hovermode="x unified",
+        showlegend=False,
+        yaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black')
+    )
     st.plotly_chart(fig5, use_container_width=True, key=f"exc_{ticker}_{bench_name}")
 
 def render_comparison_cards(target, bench):
