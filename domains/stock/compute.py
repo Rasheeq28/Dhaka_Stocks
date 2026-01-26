@@ -55,6 +55,10 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
     # 5. Build Timeline
     timeline = pd.DataFrame({
         'date': merged['date'],
+        'open': merged['openp'],  # Adjust column name if necessary
+        'high': merged['high'],
+        'low': merged['low'],
+        'close': merged['closep'],
         'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
         'Bench Return': merged['bench_ret'],
         'Daily Traded Value': merged['value_mn'],
@@ -66,83 +70,7 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
     })
 
     return timeline
-# def calculate_period_comparison(df, entity_name, entity_type):
-#     """Calculates Period Average pillars for Stock, Sector, Category, or Index."""
-#     # Robust filtering logic
-#     if entity_type == "stock":
-#         work_df = df[df['trading_code'] == entity_name].copy()
-#     else:
-#         # Use the helper to handle DS30, Sector, and Category correctly
-#         work_df = get_benchmark_df(df, entity_name, entity_type)
-#
-#     if work_df.empty:
-#         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
-#
-#     # Group by date to get daily average metrics for the entity group
-#     daily_stats = work_df.groupby('date').agg(
-#         ret_ratio=('ltp', lambda x: (x / work_df.loc[x.index, 'ycp']).mean()),
-#         val=('value_mn', 'sum')
-#     )
-#
-#     return {
-#         "Entity": entity_name,
-#         "Avg Return": (daily_stats['ret_ratio'].prod() ** (1 / len(daily_stats)) - 1) * 100,
-#         "Volatility": (daily_stats['ret_ratio'] - 1).std() * 100,
-#         "Pos. Days": (daily_stats['ret_ratio'] > 1).mean() * 100,
-#         "ADTV": daily_stats['val'].mean(),
-#         "Total Volume": work_df['volume'].sum()
-#     }
 
-# def calculate_period_comparison(df, entity_name, entity_type):
-#     """Calculates Period Average pillars using the Market Logic (Standard Dev + GMean)."""
-#
-#     # 1. Robust filtering logic
-#     if entity_type == "stock":
-#         work_df = df[df['trading_code'] == entity_name].copy()
-#     else:
-#         work_df = get_benchmark_df(df, entity_name, entity_type)
-#
-#     if work_df.empty:
-#         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
-#
-#     # 2. Daily Aggregation (Matches compute_daily_market_metrics theory)
-#     # First, calculate individual daily returns for all stocks in the working set
-#     work_df = work_df[work_df['ycp'] > 0].copy()
-#     work_df['daily_ret_pct'] = ((work_df['ltp'] - work_df['ycp']) / work_df['ycp']) * 100
-#
-#     # Group by date to get the "Entity's Market Return" for that day
-#     daily_stats = work_df.groupby('date').agg(
-#         market_return=('daily_ret_pct', 'mean'),
-#         total_val=('value_mn', 'sum'),
-#         total_vol=('volume', 'sum')
-#     ).reset_index()
-#
-#     if daily_stats.empty:
-#         return {"Entity": entity_name, "Avg Return": 0, "Volatility": 0, "Pos. Days": 0, "ADTV": 0}
-#
-#     # 3. Apply Period Average Logic (Matches compute_period_averages theory)
-#
-#     # A. Volatility: Standard deviation of the daily percentage returns
-#     period_vol = daily_stats['market_return'].std()
-#
-#     # B. Geometric Mean: Convert % to decimal (1.0x) and use gmean
-#     returns_decimal = (daily_stats['market_return'] / 100) + 1
-#
-#     # Safety check for non-positive values before gmean
-#     if (returns_decimal <= 0).any():
-#         geo_mean_return = 0  # Or np.nan
-#     else:
-#         # Using scipy.stats.gmean as in your market code
-#         geo_mean_return = (gmean(returns_decimal) - 1) * 100
-#
-#     return {
-#         "Entity": entity_name,
-#         "Avg Return": geo_mean_return,
-#         "Volatility": period_vol,
-#         "Pos. Days": (daily_stats['market_return'] > 0).mean() * 100,
-#         "ADTV": daily_stats['total_val'].mean(),
-#         "Total Volume": work_df['volume'].sum()
-#     }
 
 def calculate_period_comparison(df, entity_name, entity_type):
     """Calculates Period Average pillars using exactly the same theory as market/compute.py."""

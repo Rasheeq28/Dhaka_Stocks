@@ -3,8 +3,11 @@ import streamlit as st
 import plotly.graph_objects as go
 
 
-
 def render_stock_daily_charts(df, ticker, bench_name):
+    # --- NEW: Candlestick Section ---
+    render_candlestick_chart(df, ticker)
+
+    st.divider()
     """Renders 5 daily metrics comparing Target Stock vs Benchmark."""
 
     # 1. Daily Return Comparison
@@ -68,3 +71,26 @@ def render_comparison_cards(target, bench):
                 m4.metric("ADTV", f"{data['ADTV']:.2f}M")
                 # Total volume is a secondary metric here
                 st.caption(f"Total Period Volume: {data.get('Total Volume', 0):,.0f}")
+
+
+def render_candlestick_chart(df, ticker):
+    """Renders a professional candlestick chart for the target stock."""
+    fig = go.Figure(data=[go.Candlestick(
+        x=df['date'],
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close'],
+        increasing_line_color='#00CC96', # Green
+        decreasing_line_color='#EF553B', # Red
+        name=ticker
+    )])
+
+    fig.update_layout(
+        title=f"{ticker} Price Action (Candlestick)",
+        template="plotly_white",
+        height=450,
+        xaxis_rangeslider_visible=False,
+        yaxis_title="Price (BDT)"
+    )
+    st.plotly_chart(fig, use_container_width=True, key=f"candle_{ticker}")
