@@ -34,31 +34,34 @@ def get_benchmark_df(df, name, b_type):
 #     stock_df = df[df['trading_code'] == target_stock].copy().sort_values('date')
 #     stock_adtv = stock_df['value_mn'].mean()
 #
-#     # 2. Daily Market Total (DSEX) for Liquidity Share
-#     market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
-#
-#     # 3. Filter Benchmark and calculate its daily metrics
+#     # 2. Filter Benchmark/Peer
 #     bench_df = get_benchmark_df(df, benchmark_name, benchmark_type)
 #
-#     # Calculate Benchmark Daily stats (Aggregated if Sector/Index, individual if Stock)
+#     # Calculate Benchmark Daily stats
+#     # We add 'bench_ltp' here to get the price for the trend line
 #     bench_daily = bench_df.groupby('date').agg(
+#         bench_ltp=('ltp', 'mean'),  # 'mean' works for both index groups and single stocks
 #         bench_ret=('ltp', lambda x: ((x - bench_df.loc[x.index, 'ycp']) / bench_df.loc[x.index, 'ycp']).mean() * 100),
 #         bench_val=('value_mn', 'sum')
 #     ).reset_index()
 #
 #     bench_adtv = bench_daily['bench_val'].mean()
 #
-#     # 4. Combine everything
+#     # 3. Daily Market Total (for liquidity share)
+#     market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
+#
+#     # 4. Combine
 #     merged = stock_df.merge(market_total, on='date', how='left')
 #     merged = merged.merge(bench_daily, on='date', how='left')
 #
 #     # 5. Build Timeline
 #     timeline = pd.DataFrame({
 #         'date': merged['date'],
-#         'open': merged['openp'],  # Adjust column name if necessary
+#         'open': merged['openp'],
 #         'high': merged['high'],
 #         'low': merged['low'],
 #         'close': merged['closep'],
+#         'Bench Price': merged['bench_ltp'],  # NEW: Peer price for trend line
 #         'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
 #         'Bench Return': merged['bench_ret'],
 #         'Daily Traded Value': merged['value_mn'],
@@ -70,45 +73,54 @@ def get_benchmark_df(df, name, b_type):
 #     })
 #
 #     return timeline
+
 def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_type):
     # 1. Filter Target
     stock_df = df[df['trading_code'] == target_stock].copy().sort_values('date')
     stock_adtv = stock_df['value_mn'].mean()
 
     # 2. Filter Benchmark/Peer
-    bench_df = get_benchmark_df(df, benchmark_name, benchmark_type)
+    bench_df = get_benchmark_df(df, benchmark_name, benchmark_type).copy()
 
-    # Calculate Benchmark Daily stats
-    # We add 'bench_ltp' here to get the price for the trend line
+    # --- FIX START: Calculate individual row returns first ---
+    bench_df = bench_df[bench_df['ycp'] > 0].copy()  # Avoid division by zero
+    bench_df['raw_ret'] = (bench_df['ltp'] - bench_df['ycp']) / bench_df['ycp']
+
+    # Now group and average those pre-calculated returns
     bench_daily = bench_df.groupby('date').agg(
-        bench_ltp=('ltp', 'mean'),  # 'mean' works for both index groups and single stocks
-        bench_ret=('ltp', lambda x: ((x - bench_df.loc[x.index, 'ycp']) / bench_df.loc[x.index, 'ycp']).mean() * 100),
+        bench_ltp=('ltp', 'mean'),
+        bench_ret=('raw_ret', lambda x: x.mean() * 100),
         bench_val=('value_mn', 'sum')
     ).reset_index()
+    # --- FIX END ---
 
     bench_adtv = bench_daily['bench_val'].mean()
 
-    # 3. Daily Market Total (for liquidity share)
+    # 3. Daily Market Total
     market_total = df.groupby('date')['value_mn'].sum().rename('mkt_val')
 
-    # 4. Combine
+    # 4. Combine (Outer join ensures we don't drop days if one stock was suspended)
     merged = stock_df.merge(market_total, on='date', how='left')
     merged = merged.merge(bench_daily, on='date', how='left')
 
     # 5. Build Timeline
+    # Calculate target return first for clarity
+    target_ret = ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100
+
     timeline = pd.DataFrame({
         'date': merged['date'],
         'open': merged['openp'],
         'high': merged['high'],
         'low': merged['low'],
         'close': merged['closep'],
-        'Bench Price': merged['bench_ltp'],  # NEW: Peer price for trend line
-        'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
+        'Bench Price': merged['bench_ltp'],
+        'Daily Return': target_ret,
         'Bench Return': merged['bench_ret'],
         'Daily Traded Value': merged['value_mn'],
         'Bench Traded Value': merged['bench_val'],
         'Liquidity Share': (merged['value_mn'] / merged['mkt_val'] * 100),
-        'Excess Return vs Market': (((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100) - merged['bench_ret'],
+        # Excess Return is now based on clean, aligned data
+        'Excess Return vs Market': target_ret - merged['bench_ret'],
         'Participation Index': (merged['value_mn'] / stock_adtv) if stock_adtv > 0 else 0,
         'Bench Participation Index': (merged['bench_val'] / bench_adtv) if bench_adtv > 0 else 0
     })
