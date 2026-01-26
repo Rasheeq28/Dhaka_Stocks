@@ -98,10 +98,10 @@ def calculate_stock_daily_timeline(df, target_stock, benchmark_name, benchmark_t
     # 5. Build Timeline
     timeline = pd.DataFrame({
         'date': merged['date'],
-        'open': merged['open_price'],
-        'high': merged['high_price'],
-        'low': merged['low_price'],
-        'close': merged['ltp'],
+        'open': merged['openp'],
+        'high': merged['high'],
+        'low': merged['low'],
+        'close': merged['closep'],
         'Bench Price': merged['bench_ltp'],  # NEW: Peer price for trend line
         'Daily Return': ((merged['ltp'] - merged['ycp']) / merged['ycp']) * 100,
         'Bench Return': merged['bench_ret'],
