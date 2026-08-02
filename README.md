@@ -1,5 +1,5 @@
 # Dhaka Stocks — Market Data & Insight Project on DSEX
-Visit at https://dhaka-stocks-qlabs.streamlit.app/ 
+Visit dashboard at [Dhaka_Stocks](https://dhaka-stocks-qlabs.streamlit.app/) 
 
 ## What this is
 A structured market data and analytics project on the Dhaka Stock Exchange (DSEX),
